@@ -1,0 +1,31 @@
+{
+  "name": "humix-sense-speech",
+  "version": "0.2.0",
+  "description": "A node module for facial detection and recognition",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/project-humix/humix-facerec-module.git"
+  },
+  "scripts": {
+    "install": "make"
+  },
+  "keywords": [
+    "humix",
+    "facerec",
+    "raspberrypi",
+    "recognition",
+    "pi"
+  ],
+  "dependencies": {
+    "logule": "^2.0.1",
+    "nats": "^0.2.9",
+    "node-humix-sense": "^1.0.0"
+  },
+  "devDependencies": {
+    "nan": "^2.1.0",
+    "node-gyp": "^3.2.1"
+  },
+  "engines" : { "node" : ">=4.2" }
+}

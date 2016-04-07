@@ -1,2 +1,4 @@
-# humix-facerec-module
-Humix module for facial detection and recognition
+
+# Humix Facial Recognition Module
+
+TBA
