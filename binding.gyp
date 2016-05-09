@@ -6,8 +6,10 @@
         "./src/HumixFaceRec.cpp"
       ],
       "include_dirs": [ "<!(node -e \"require('nan')\")",
+        "<!@(pkg-config opencv3 --cflags-only-I | sed s/-I//g)"
       ],
       "libraries": [ "-Wl",
+         "<!@(pkg-config opencv3 --libs)"
       ]
     },
     {

@@ -18,7 +18,7 @@
 #define SRC_HUMIXFACEREC_HPP_
 
 #include <string>
-
+#include <queue>
 #include <nan.h>
 
 class StreamTTS;
@@ -39,24 +39,55 @@ public:
     static v8::Local<v8::FunctionTemplate> sFunctionTemplate(
             v8::Isolate* isolate);
 private:
+    
+    bool init();
+    
     static void sV8New(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStart(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStop(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sDetect(const v8::FunctionCallbackInfo<v8::Value>& info);
 
     void Start(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Stop(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Train(const v8::FunctionCallbackInfo<v8::Value>& info);
-
-    static void sReceiveCmd(uv_async_t* handle);
+    void Detect(const v8::FunctionCallbackInfo<v8::Value>& info);
+    
+    
+    
+    static void sTrainLoop(void* arg);
+    bool TrainData();
+    static void sTrainCompleted(uv_async_t* async);
+ 
     static void sFreeHandle(uv_handle_t* handle);
 
+    Mat CropFace(Mat img, int *eye_left, int *eye_right);
+    Mat RotateImage(const Mat source, double angle, int center_x, int center_y, int border = 20);
+    
     State mState;
     int mArgc;
     char** mArgv;
 
     v8::Persistent<v8::Function> mCB;
+    v8::Persistent<v8::Function> mTrainCB;
 
+    uv_thread_t mTrainingThread;
+
+    Ptr<FaceRecognizer> mFacialModel;
+    VideoCapture *mVideoCap;
+
+    vector<Mat> mImages;
+    vector<int> mLabels;
+    // initial training 
+    vector<Mat> newImages;
+    vector<int> newLabels;
+    vector<std::string> mPersons;
+    
+    char* mCurrentUser;
+    int mSaveImgNum;
+
+    CascadeClassifier m_haar_cascade;
+	CascadeClassifier m_eye_cascade;
 };
 
 

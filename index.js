@@ -16,10 +16,11 @@
 'use strict';
 var console = require('console');
 var config  = require('./lib/config');
-var nats    = require('nats').connect();
-
-var HumixSense = require('node-humix-sense');
 var HumixFaceRec = require('./lib/HumixFaceRec').HumixFaceRec;
+
+/*
+var nats    = require('nats').connect();
+var HumixSense = require('node-humix-sense');
 
 var moduleConfig = {
     "moduleName":"humix-facerec",
@@ -48,8 +49,33 @@ function startTraining(){
     console.log('start trainning');
 }
 
+*/
 
 var hs;
+
+function init() {
+
+    console.log('init FaceRec module');   
+    try {
+
+        hs = new HumixFaceRec(config.options);
+        hs.train(detectFace);
+
+    } catch ( error ) {
+        console.error(error);
+    }
+        
+    
+}
+
+init();
+
+
+setInterval(function() {
+
+    console.log("waiting...");    
+
+}, 5000);
 
 /**
  * callback function that is called when
@@ -57,10 +83,10 @@ var hs;
  * @param cmdstr a command/sentence in this format:
  *         '----="command string"=---'
  */
-function detectFace() {
+function detectFace(name) {
 
 
-    console.log('face detected');
+    console.log('face detected, name:'+name);
     /*
     cmdstr = cmdstr.trim();
     if ( config.engine ) {
@@ -90,14 +116,6 @@ function detectFace() {
     */
 }
 
-try {
-
-    hs = new HumixFaceRec(config.options);
-    hs.start(detectFace);
-
-} catch ( error ) {
-    console.error(error);
-}
 
 function cleanup() {
     if (hs) {
