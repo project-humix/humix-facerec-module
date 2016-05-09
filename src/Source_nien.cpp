@@ -156,6 +156,8 @@ int detect(Mat &original, Ptr<FaceRecognizer> &model, CascadeClassifier haar_cas
 		Rect face_i = faces[i];
 		// Crop the face from the image. So simple with OpenCV C++:
 		Mat face = gray(face_i);
+		//cvEqualizeHist(face, face);
+		equalizeHist(face, face);
 		// Resizing the face is necessary for Eigenfaces and Fisherfaces. You can easily
 		// verify this, by reading through the face recognition tutorial coming with OpenCV.
 		// Resizing IS NOT NEEDED for Local Binary Patterns Histograms, so preparing the
@@ -242,51 +244,28 @@ int detect(Mat &original, Ptr<FaceRecognizer> &model, CascadeClassifier haar_cas
 
 			cout << "Id=" << person.at(prediction) << ", conf=" << confidence.str() << endl;
 
-			if (temp_prediction == prediction) {
-				if (Count_same_face >= 5) {
+			if (temp_prediction == prediction && predicted_confidence <= 120 ) {
+				if (Count_same_face >= 3) {
 					Count_same_face = 0;
 					cout << "{'name':" << person.at(prediction) << ",'confidence':" << confidence.str() << "}" << endl;
-				}
-				else {
-					if (Count_same_face >= 2 && predicted_confidence < 200) {
-						return 1;
-					}
-					Count_same_face++;
-				}
+					Count = 0;
+				}	
+				Count_same_face++;
 			}
-			else {
+			else if(predicted_confidence >= 135 && Count >=15){
+				cout << "predicted_confidence >= 135 && Count ="<< Count << " ,,,return 1"<< endl;
+				Count = 0;
+				return 1;								
+			}			
+			else{
 				temp_prediction = prediction;
-				Count_same_face = 0;
-			}
-			/*
-			if (predicted_confidence < 200) {
-			return 1;
-			}
-			*/
-
-			/*
-			if (Count == 5) {
-			Count = 0;
-			cout << "Add new images & update" << endl;
-			//
-			// Cut face & save img
-			//imwrite(".\\Me\\" + int2str(Save_Img_num) + ".jpg", CutImg);
-			//
-			//
-			// Save origional face
-			//resize(face, face, Size(im_width, im_height), 1.0, 1.0, INTER_CUBIC);
-			//imwrite(".\\Me\\" + int2str(Save_Img_num) + ".jpg", face);
-
+				Count_same_face = 0;				
 			}
 			Count++;
-			*/
-
-
 		}
 	}
-
+	
 	return 0;
-
 }
 bool train_data(Mat &original, Ptr<FaceRecognizer> &model, CascadeClassifier haar_cascade, CascadeClassifier eye_cascade, vector<string> person) {
 
@@ -302,7 +281,7 @@ bool train_data(Mat &original, Ptr<FaceRecognizer> &model, CascadeClassifier haa
 		Rect face_i = faces[i];
 		// Crop the face from the image. So simple with OpenCV C++:
 		Mat face = gray(face_i);
-
+		equalizeHist(face, face);
 		Mat face_resized;
 
 		// Catch eye
@@ -393,8 +372,8 @@ bool train_data(Mat &original, Ptr<FaceRecognizer> &model, CascadeClassifier haa
 				cout << "Train success " << endl;
 				return true;
 			}
-			else if (Save_Img_num == 10) {
-				cout << "Train 10 times,leave " << endl;
+			else if (Save_Img_num == 11) {
+				cout << "Train 1000000000000000000 times,leave " << endl;
 				Save_Img_num = 0;
 				return true;
 			}
@@ -414,7 +393,7 @@ int main(int argc, const char *argv[]) {
 	Img_Conf.open("Img_Conf.txt");
 	ID.open("ID.txt");
 
-	vector<string> person = { "clooney","Emma" };
+	vector<string> person = { "NIEN","HAN"};
 
 	//string fn_haar = string("haarcascade_frontalface_alt_tree.xml");	
 	string fn_haar = string("lbpcascade_frontalface.xml");
@@ -483,8 +462,11 @@ int main(int argc, const char *argv[]) {
 			if (mode == 1) {
 				cout << "Ready to Train new people " << endl;
 				string name;
-				cout << "What your name?" << endl;
+				cout << "What your name?   [N for leave]" << endl;
 				cin >> name;
+				if (name == "NO" || name == "no" || name == "N") {
+					mode = 0;
+				}
 				person.push_back(name);
 			}
 		}
