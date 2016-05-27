@@ -1,7 +1,7 @@
 HUMIXMODULE=lib/HumixFaceRec.node
 
 all: $(HUMIXMODULE)
-$(HUMIXMODULE): src/HumixFacerec.cpp
+$(HUMIXMODULE): src/HumixFaceRec.cpp
 	node-gyp configure
 	node-gyp build
 	

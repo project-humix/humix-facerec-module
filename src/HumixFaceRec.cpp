@@ -21,7 +21,6 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/objdetect.hpp"
 
-//#include "FaceRec.cpp"
 
 #include <iostream>
 #include <fstream>
@@ -39,50 +38,6 @@ using namespace std;
 
 #define DEVICE_ID 0
 
-/*
-static const arg_t cont_args_def[] = {
-    POCKETSPHINX_OPTIONS,
-    // Argument file. 
-    {"-argfile",
-     ARG_STRING,
-     NULL,
-     "Argument file giving extra arguments."},
-    {"-adcdev",
-     ARG_STRING,
-     NULL,
-     "Name of audio device to use for input."},
-    {"-time",
-     ARG_BOOLEAN,
-     "no",
-     "Print word times in file transcription."},
-    {"-cmdproc",
-     ARG_STRING,
-     "./processcmd.sh",
-     "command processor."},
-    {"-wav-say",
-     ARG_STRING,
-     "./voice/interlude/pleasesay1.wav",
-     "the wave file of saying."},
-    {"-wav-proc",
-     ARG_STRING,
-     "./voice/interlude/process1.wav",
-     "the wave file of processing."},
-    {"-wav-bye",
-     ARG_STRING,
-     "./voice/interlude/bye.wav",
-     "the wave file of goodbye."},
-    {"-keyword-name",
-      ARG_STRING,
-      "HUMIX",
-      "keyword of the name."},
-    {"-lang",
-     ARG_STRING,
-     "zh-tw",
-     "language locale."},
-
-    CMDLN_EMPTY_OPTION
-};
-*/
 
 string int2str(int &i) {
 	string s;
