@@ -115,6 +115,10 @@ HumixFaceRec::~HumixFaceRec() {
 
     mCB.Reset();
     mTrainCB.Reset();
+    CleanCapturedFaces();
+    if (mCurrentUser) {
+        free(mCurrentUser);
+    }
 }
 
 
@@ -181,23 +185,6 @@ bool HumixFaceRec::init(){
 	// Train Default Images
 	mFacialModel->train(mImages, mLabels);
 
-
-	// Get a handle to the Video device:
-    
-    
-    mVideoCap = new VideoCapture(DEVICE_ID);
-    mVideoCap->set(CV_CAP_PROP_FRAME_WIDTH, 640);
-    mVideoCap->set(CV_CAP_PROP_FRAME_HEIGHT, 480);
-    
-	if (!mVideoCap->isOpened()) {
-        
-        printf("Capture Device ID: %d cannot be opened. \n", DEVICE_ID);
-		return false;
-	}
-	
-    
-    
-    return true;
     // Holds the current frame from the Video device:
 	//Mat frame;
 
@@ -226,7 +213,7 @@ void HumixFaceRec::sV8New(const v8::FunctionCallbackInfo<v8::Value>& info) {
 }
 
 /*static*/
-void HumixFaceRec::sStart(const v8::FunctionCallbackInfo<v8::Value>& info) {
+void HumixFaceRec::sStartCam(const v8::FunctionCallbackInfo<v8::Value>& info) {
     HumixFaceRec* hs = Unwrap<HumixFaceRec>(info.Holder());
     if ( hs == nullptr ) {
         info.GetIsolate()->ThrowException(v8::Exception::ReferenceError(
@@ -234,32 +221,36 @@ void HumixFaceRec::sStart(const v8::FunctionCallbackInfo<v8::Value>& info) {
         return;
     }
 
-    if ( info.Length() < 1 || !info[0]->IsFunction() ) {
+    if ( info.Length() != 1 || !info[0]->IsFunction() ) {
         info.GetIsolate()->ThrowException(v8::Exception::SyntaxError(
-                Nan::New("Usage: start(callback)").ToLocalChecked()));
+                Nan::New("Usage: startCam(<device id>)").ToLocalChecked()));
         return;
     }
-    hs->Start(info);
+    hs->StartCam(info);
 }
 
 void
-HumixFaceRec::Start(const v8::FunctionCallbackInfo<v8::Value>& info) {
+HumixFaceRec::StartCam(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
-    v8::Isolate* isolate = info.GetIsolate();
-    v8::Local<v8::Context> ctx = isolate->GetCurrentContext();
- 
-    v8::Local<v8::Function> cb = info[0].As<v8::Function>();
+    v8::Local<v8::Integer> devInt = info[0].As<v8::Integer>();
 
-    mCB.Reset(isolate, cb);
-    
-   
-    v8::Local<v8::Value> argv[] = { Nan::New("Jeffrey").ToLocalChecked() };
-    v8::Local<v8::Function> func = v8::Local<v8::Function>::New(isolate, mCB);
-    func->CallAsFunction(ctx, ctx->Global(), 1, argv);
+    if (mVideoCap != NULL) {
+        //restart the capture by delete the old one
+        delete mVideoCap;
+    }
+    // Get a handle to the Video device:
+    mVideoCap = new VideoCapture(devInt->Value());
+    mVideoCap->set(CV_CAP_PROP_FRAME_WIDTH, 640);
+    mVideoCap->set(CV_CAP_PROP_FRAME_HEIGHT, 480);
+
+    if (!mVideoCap->isOpened()) {
+        return info.GetReturnValue().Set(false);
+    }
+    info.GetReturnValue().Set(true);
 }
 
 /*static*/
-void HumixFaceRec::sStop(const v8::FunctionCallbackInfo<v8::Value>& info) {
+void HumixFaceRec::sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info) {
     HumixFaceRec* hs = Unwrap<HumixFaceRec>(info.Holder());
     if ( hs == nullptr ) {
         info.GetIsolate()->ThrowException(v8::Exception::ReferenceError(
@@ -269,17 +260,81 @@ void HumixFaceRec::sStop(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
     if ( info.Length() != 0 ) {
         info.GetIsolate()->ThrowException(v8::Exception::SyntaxError(
-                Nan::New("Usage: stop()").ToLocalChecked()));
+                Nan::New("Usage: stopCam()").ToLocalChecked()));
         return;
     }
-    hs->Stop(info);
+    hs->StopCam(info);
 }
 
 void
-HumixFaceRec::Stop(const v8::FunctionCallbackInfo<v8::Value>& info) {
-    mCB.Reset();
-    mTrainCB.Reset();
-    mState = kStop;
+HumixFaceRec::StopCam(const v8::FunctionCallbackInfo<v8::Value>&) {
+    if (mVideoCap) {
+        delete mVideoCap;
+    }
+}
+
+/*static*/
+void HumixFaceRec::sCaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    HumixFaceRec* hs = Unwrap<HumixFaceRec>(info.Holder());
+    if ( hs == nullptr ) {
+        info.GetIsolate()->ThrowException(v8::Exception::ReferenceError(
+                Nan::New("Not a HumixFaceRec object").ToLocalChecked()));
+        return;
+    }
+
+    if ( info.Length() != 0 || !info[0]->IsFunction() ) {
+        info.GetIsolate()->ThrowException(v8::Exception::SyntaxError(
+                Nan::New("Usage: captureFace()").ToLocalChecked()));
+        return;
+    }
+    hs->CaptureFace(info);
+}
+
+void
+HumixFaceRec::CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
+
+    if (mVideoCap == NULL) {
+        info.GetIsolate()->ThrowException(
+                v8::Exception::Error(Nan::New("call startCam() first").ToLocalChecked()));
+        return;
+    }
+
+    Mat frame;
+    *mVideoCap >> frame;
+    //cap >> frame;
+    printf("new frame got \n");
+
+    // Convert the current frame to grayscale:
+    Mat gray;
+    mCurrentSnapshot = frame.clone();
+
+    cvtColor(mCurrentSnapshot, gray, COLOR_BGR2GRAY);
+    // Find the faces in the frame:
+    vector< Rect_<int> > faces;
+    CleanCapturedFaces();
+    m_haar_cascade.detectMultiScale(gray, faces);
+    for (size_t i = 0; i < faces.size(); i++) {
+
+        printf("new face\n");
+        // Process face by face:
+        Rect face_i = faces[i];
+        // Crop the face from the image. So simple with OpenCV C++:
+        Mat face = gray(face_i);
+
+        Mat face_resized;
+
+        // Catch eye
+        vector< Rect_<int> > eyes;
+        m_eye_cascade.detectMultiScale(face, eyes);
+        if (eyes.size() == 2) {
+            Mat CutImg = CropFace(mCurrentSnapshot, gray, face_i, eyes);
+            cv::resize(CutImg, CutImg, Size(70, 70), 1.0, 1.0, INTER_CUBIC);
+            Face* captured = new Face(face_i, CutImg);
+            mCapturedFaces.push_back(captured);
+        }
+    }
+
+    info.GetReturnValue().Set((unsigned int)mCapturedFaces.size());
 }
 
 /*static*/
@@ -332,7 +387,7 @@ void HumixFaceRec::sTrainLoop(void* arg) {
     printf(" in sTrainLoop\n");
    
     if(_this->mCurrentUser){
-        delete _this->mCurrentUser;
+        free(_this->mCurrentUser);
         _this->mCurrentUser = NULL;
     }
     
@@ -396,7 +451,7 @@ Mat HumixFaceRec::RotateImage(const Mat source, double angle, int center_x, int 
 }
 
 
-Mat HumixFaceRec::CropFace(Mat img, int *eye_left, int *eye_right) {
+Mat HumixFaceRec::CropFace(Mat &orig, Mat &img, Rect &face, vector< Rect_<int> > &eyes) {
 	Mat Crop_img;
 	int eye_direction[2];
 	// Offset percentage
@@ -406,6 +461,44 @@ Mat HumixFaceRec::CropFace(Mat img, int *eye_left, int *eye_right) {
 	// calculate offsets in original image
 	double offset_h = floor(float(offset_pct)*dest_sz);
 	double offset_v = floor(float(offset_pct)*dest_sz);
+
+    int eye_left[] = {0, 0} ;
+    int eye_right[] = {0, 0};
+    int temp[] = {0, 0};
+
+	for (size_t j = 0; j < eyes.size(); j++) {
+        Rect eyes_j = eyes[j];
+
+        eyes_j.x = eyes_j.x + std::max(face.tl().x, 0) + (eyes_j.width / 2);
+        eyes_j.y = eyes_j.y + std::max(face.tl().y, 0) + (eyes_j.height / 2);
+        eyes_j.width = 3;
+        eyes_j.height = 3;
+        rectangle(orig, eyes_j, Scalar(0, 0, 255), 2);
+
+        if (j == 0) {
+            temp[0] = eyes_j.x + (eyes_j.width / 2);
+            temp[1] = eyes_j.y + (eyes_j.height / 2);
+        }
+        else {
+            //save eye x&y
+            if (temp[0] > eyes_j.x + (eyes_j.width / 2)) {
+                // first eyes is right eye
+                eye_right[0] = temp[0];
+                eye_right[1] = temp[1];
+                eye_left[0] = eyes_j.x + (eyes_j.width / 2);
+                eye_left[1] = eyes_j.y + (eyes_j.height / 2);
+            }
+            else {
+                // second eyes is right eye
+                eye_left[0] = temp[0];
+                eye_left[1] = temp[1];
+                eye_right[0] = eyes_j.x + (eyes_j.width / 2);
+                eye_right[1] = eyes_j.y + (eyes_j.height / 2);
+            }
+        }
+    }
+
+
 	// get the direction
 	eye_direction[0] = (eye_right[0] - eye_left[0]);
 	eye_direction[1] = (eye_right[1] - eye_left[1]);
@@ -431,7 +524,7 @@ Mat HumixFaceRec::CropFace(Mat img, int *eye_left, int *eye_right) {
 	int crop_xy[2];
 	crop_xy[0] = eye_left[0] - scale*offset_h + 20;
 	crop_xy[1] = eye_left[1] - scale*offset_v + 20;
-	Rect cutROI(int(crop_xy[0]), int(crop_xy[1]), int(scale*dest_sz), int(scale*dest_sz));
+	Rect cutROI(crop_xy[0], crop_xy[1], (int)(scale*dest_sz), (int)(scale*dest_sz));
 	Crop_img = img_rotate(cutROI);
 	// Resize Crop_img
 	resize(Crop_img, Crop_img, Size(dest_sz, dest_sz), 1.0, 1.0, INTER_CUBIC);
@@ -491,45 +584,9 @@ bool HumixFaceRec::TrainData() {
             // Catch eye
             vector< Rect_<int> > eyes;
             m_eye_cascade.detectMultiScale(face, eyes);
-            // Draw eye
-            int eye_left[2];
-            int eye_right[2];
-            int temp[2];
-
 
             if (eyes.size() == 2) {
-                for (size_t j = 0; j < eyes.size(); j++) {
-                    Rect eyes_j = eyes[j];
-
-                    eyes_j.x = eyes_j.x + std::max(face_i.tl().x, 0) + (eyes_j.width / 2);
-                    eyes_j.y = eyes_j.y + std::max(face_i.tl().y, 0) + (eyes_j.height / 2);
-                    eyes_j.width = 3;
-                    eyes_j.height = 3;
-                    rectangle(original, eyes_j, Scalar(0, 0, 255), 2);
-
-                    if (j == 0) {
-                        temp[0] = eyes_j.x + (eyes_j.width / 2);
-                        temp[1] = eyes_j.y + (eyes_j.height / 2);
-                    }
-                    else {
-                        //save eye x&y
-                        if (temp[0] > eyes_j.x + (eyes_j.width / 2)) {
-                            // first eyes is right eye
-                            eye_right[0] = temp[0];
-                            eye_right[1] = temp[1];
-                            eye_left[0] = eyes_j.x + (eyes_j.width / 2);
-                            eye_left[1] = eyes_j.y + (eyes_j.height / 2);
-                        }
-                        else {
-                            // second eyes is right eye
-                            eye_left[0] = temp[0];
-                            eye_left[1] = temp[1];
-                            eye_right[0] = eyes_j.x + (eyes_j.width / 2);
-                            eye_right[1] = eyes_j.y + (eyes_j.height / 2);
-                        }
-                    }
-                }
-                Mat CutImg = CropFace(gray, eye_left, eye_right);
+                Mat CutImg = CropFace(original, gray, face_i, eyes);
                 cv::resize(CutImg, CutImg, Size(70, 70), 1.0, 1.0, INTER_CUBIC);
 
                 imwrite("./images/me" + int2str(mSaveImgNum) + ".jpg", CutImg);
@@ -580,12 +637,11 @@ bool HumixFaceRec::TrainData() {
                 else if (mSaveImgNum == 10) {
                     cout << "Train 10 times,leave " << endl;
                     mSaveImgNum = 0;
-                    return true;
+                    return false;
                 }
                 else {
                     cout << "Id=" << mPersons.at(prediction) << ", conf=" << confidence.str() << endl;
                     cout << "Continuing training... " << endl;
-                    return false;
                 }
             }
         }
@@ -633,8 +689,10 @@ v8::Local<v8::FunctionTemplate> HumixFaceRec::sFunctionTemplate(
             HumixFaceRec::sV8New);
     tmpl->SetClassName(Nan::New("HumixFaceRec").ToLocalChecked());
     tmpl->InstanceTemplate()->SetInternalFieldCount(1);
-    NODE_SET_PROTOTYPE_METHOD(tmpl, "start", sStart);
-    NODE_SET_PROTOTYPE_METHOD(tmpl, "stop", sStop);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "startCam", sStartCam);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "stopCam", sStopCam);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "captureFace", sCaptureFace);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "detectFace", sDetectFace);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "train", sTrain);
 
     return scope.Escape(tmpl);

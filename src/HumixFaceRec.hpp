@@ -20,8 +20,18 @@
 #include <string>
 #include <queue>
 #include <nan.h>
+#include <vector>
 
 class StreamTTS;
+
+struct Face {
+    Rect mRect;
+    Mat mMat;
+    Face(Rect rect, Mat mat) {
+        mRect = rect;
+        mMat = mat;
+    }
+};
 
 class HumixFaceRec : public Nan::ObjectWrap{
 public:
@@ -44,12 +54,16 @@ private:
     
     static void sV8New(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
-    static void sStart(const v8::FunctionCallbackInfo<v8::Value>& info);
-    static void sStop(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sStartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sCaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sDetectFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sDetect(const v8::FunctionCallbackInfo<v8::Value>& info);
 
-    void Start(const v8::FunctionCallbackInfo<v8::Value>& info);
-    void Stop(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void StartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void StopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void DetectFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Train(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Detect(const v8::FunctionCallbackInfo<v8::Value>& info);
     
@@ -61,9 +75,18 @@ private:
  
     static void sFreeHandle(uv_handle_t* handle);
 
-    Mat CropFace(Mat img, int *eye_left, int *eye_right);
+    Mat CropFace(Mat &orig, Mat &gray, Rect &face, vector< Rect_<int> > &eyes);
     Mat RotateImage(const Mat source, double angle, int center_x, int center_y, int border = 20);
     
+    void CleanCapturedFaces() {
+        while (!mCapturedFaces.empty())
+          {
+            Face* face = mCapturedFaces.back();
+            delete face;
+            mCapturedFaces.pop_back();
+          }
+    }
+
     State mState;
     int mArgc;
     char** mArgv;
@@ -88,8 +111,9 @@ private:
 
     CascadeClassifier m_haar_cascade;
 	CascadeClassifier m_eye_cascade;
+
+	vector<Face*> mCapturedFaces;
+	Mat mCurrentSnapshot;
 };
-
-
 
 #endif /* SRC_HUMIXFACEREC_HPP_ */

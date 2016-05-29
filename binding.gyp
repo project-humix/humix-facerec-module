@@ -9,9 +9,11 @@
         "/usr/local/include/opencv2/",
         "<!@(pkg-config opencv --cflags-only-I | sed s/-I//g)"
       ],
-      "libraries": [ "-Wl",
+      "libraries": [
          "<!@(pkg-config opencv --libs)"
-      ]
+      ],
+      "cflags!": [ "-fno-exceptions" ],
+      "cflags_cc!": [ "-fno-exceptions" ]
     },
     {
       "target_name": "action_after_build",
