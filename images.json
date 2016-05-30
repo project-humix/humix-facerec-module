@@ -1,0 +1,23 @@
+{
+    "tom": [ "./images/tom1.jpg",
+             "./images/tom2.jpg",
+             "./images/tom3.jpg"
+           ],
+    "crooney": [ "./images/crooney1.jpg",
+                 "./images/crooney2.jpg",
+                 "./images/crooney3.jpg",
+                 "./images/crooney4.jpg",
+                 "./images/crooney5.jpg",
+                 "./images/crooney6.jpg",
+                 "./images/crooney7.jpg",
+                 "./images/crooney8.jpg",
+                 "./images/crooney9.jpg",
+                 "./images/crooney10.jpg"
+               ],
+    "joey": [ "./images/joey1.jpg",
+              "./images/joey2.jpg",
+              "./images/joey3.jpg",
+              "./images/joey4.jpg",
+              "./images/joey5.jpg"
+            ]
+}

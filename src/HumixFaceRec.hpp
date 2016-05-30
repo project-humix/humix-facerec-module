@@ -21,15 +21,21 @@
 #include <queue>
 #include <nan.h>
 #include <vector>
+#include <map>
 
 class StreamTTS;
 
 struct Face {
     Rect mRect;
     Mat mMat;
-    Face(Rect rect, Mat mat) {
+    char* mName;
+    Face(const char* name, Rect rect, Mat mat) {
         mRect = rect;
         mMat = mat;
+        mName = strdup(name);
+    }
+    ~Face() {
+        free(mName);
     }
 };
 
@@ -53,25 +59,25 @@ private:
     bool init();
     
     static void sV8New(const v8::FunctionCallbackInfo<v8::Value>& info);
-    static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sCaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
-    static void sDetectFace(const v8::FunctionCallbackInfo<v8::Value>& info);
-    static void sDetect(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sTrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
+//    static void sDetect(const v8::FunctionCallbackInfo<v8::Value>& info);
 
     void StartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     void StopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     void CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
-    void DetectFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void TrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Train(const v8::FunctionCallbackInfo<v8::Value>& info);
-    void Detect(const v8::FunctionCallbackInfo<v8::Value>& info);
+//    void Detect(const v8::FunctionCallbackInfo<v8::Value>& info);
     
     
     
-    static void sTrainLoop(void* arg);
-    bool TrainData();
-    static void sTrainCompleted(uv_async_t* async);
+//    static void sTrainLoop(void* arg);
+//    bool TrainData();
+//    static void sTrainCompleted(uv_async_t* async);
  
     static void sFreeHandle(uv_handle_t* handle);
 
@@ -94,8 +100,6 @@ private:
     v8::Persistent<v8::Function> mCB;
     v8::Persistent<v8::Function> mTrainCB;
 
-    uv_thread_t mTrainingThread;
-
     Ptr<FaceRecognizer> mFacialModel;
     VideoCapture *mVideoCap;
 
@@ -104,7 +108,7 @@ private:
     // initial training 
     vector<Mat> newImages;
     vector<int> newLabels;
-    vector<std::string> mPersons;
+    std::map<std::string, int> mPersons;
     
     char* mCurrentUser;
     int mSaveImgNum;
@@ -114,6 +118,7 @@ private:
 
 	vector<Face*> mCapturedFaces;
 	Mat mCurrentSnapshot;
+	bool mTrained;
 };
 
 #endif /* SRC_HUMIXFACEREC_HPP_ */
