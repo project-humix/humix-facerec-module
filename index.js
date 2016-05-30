@@ -14,7 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 'use strict';
+
 var console = require('console');
+var _ = require('lodash');
+var fs = require('fs');
+var path = require('path');
+
 var config  = require('./lib/config');
 var HumixFaceRec = require('./lib/HumixFaceRec').HumixFaceRec;
 
@@ -50,101 +55,59 @@ function startTraining(){
 }
 
 */
-
-var hs;
-
-function init() {
-
-    console.log('init FaceRec module');   
-    try {
-
-        hs = new HumixFaceRec(config.options);
-        hs.train(detectFace);
-
-    } catch ( error ) {
-        console.error(error);
-    }
-        
-    
+function FaceRec(config) {
+	this._hfr = new HumixFaceRec(config.options);
+	this._hfr.startCam(config.deviceID);
 }
 
-init();
+FaceRec.prototype.train = function(name, images) {
+	if (!_.isString(name) || !_.isArray(images)) {
+		throw TypeError('train(string, array)');
+	}
+	this._hfr.train(name, images);
+}
 
+FaceRec.prototype.captureAndTrain = function(name, number) {
+    if (!_.isString(name) || !_.isNumber(number)) {
+        throw new TypeError('captureAndTrain(name, number)');
+    }
 
-setInterval(function() {
+ 	console.info('start training mode with user:', name);
+	var counter = 0;
+	for(var index = 0; index < number; index++) {
+		var faces = this._hfr.captureFace(name, 'images/' + name + counter);
+		if (faces > 0) {
+			counter++;
+			console.info('capture', faces, 'face(s), trying to detect it');
+			if (this._hfr.trainCapturedFace(name)) {
+				console.info('successfully recognize', name);
+				return;
+			}
+		}
+	}
+    console.info('training failed after', number, 'attempts');
+}
 
-    console.log("waiting...");    
-
-}, 5000);
-
-/**
- * callback function that is called when
- * HumixSpeech detect a valid command/sentence
- * @param cmdstr a command/sentence in this format:
- *         '----="command string"=---'
+/*
+ 	console.info('start training mode with user:', name);
+	var counter = 0;
+	for(var index = 0; index < 10; index++) {
+		var faces = this._hfr.captureFace(name, 'images/' + name + counter + '.jpg');
+		if (faces > 0) {
+			counter++;
+			console.info('capture', faces, 'face(s), trying to detect it');
+			if (this._hfr.detectFace() === name) {
+				console.info('successfully recognize', name);
+			}
+		}
+	}
  */
-function detectFace(name) {
 
-
-    console.log('face detected, name:'+name);
-    /*
-    cmdstr = cmdstr.trim();
-    if ( config.engine ) {
-        console.error('command found:', cmdstr);
-        
-        if(hsm)
-            hsm.event("detect", cmdstr);
-
-    } else {
-        var match = commandRE.exec(cmdstr);
-        if ( match && match.length == 2 ) {
-            var cmd = match[1];
-            console.error('command found:', cmd);
-            try {
-                nats.publish('humix.sense.speech.event', cmd);
-            } catch ( e ) {
-                console.error('can not publish to nats:', e);
-            }
-            //echo mode
-            //text2Speech( '{ "text" : "' + cmd + '" }' );
-            if ( hs && cmd.indexOf('聖誕') != -1 && cmd.indexOf('快樂') != -1 ) {
-                hs.play('./voice/music/jingle_bells.wav');
-            }
-        }
-    }
-
-    */
+var hfr = new FaceRec(config);
+//use the existing images to train the engine first
+var existingData = require('./images.json');
+for (var person in existingData) {
+    console.info('training', person);
+	hfr.train(person, existingData[person]);
 }
-
-
-function cleanup() {
-    if (hs) {
-        hs.stop();
-    }
-}
-
-process.on('SIGINT', function() {
-    cleanup();
-    process.exit(0);
-});
-process.on('SIGHUP', function() {
-    cleanup();
-    process.exit(0);
-});
-process.on('SIGTERM', function() {
-    cleanup();
-    process.exit(0);
-});
-process.on('exit', function() {
-    cleanup();
-});
-process.on('error', function() {
-    cleanup();
-});
-
-process.on('uncaughtException', function(err) {
-    if ( err.toString().indexOf('connect ECONNREFUSED') ) {
-        console.error('exception,', JSON.stringify(err));
-    }
-});
-
+hfr.captureAndTrain('yihong', 20);
