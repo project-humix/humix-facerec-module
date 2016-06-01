@@ -47,84 +47,19 @@ string int2str(int &i) {
 }
 
 
-//static char* sGetObjectPropertyAsString(
-//        v8::Local<v8::Context> ctx,
-//        v8::Local<v8::Object> &obj,
-//        const char* name,
-//        const char* defaultValue) {
-//
-//    v8::Local<v8::Value> valObj;
-//    if ( obj->Get(ctx, Nan::New(name).ToLocalChecked()).ToLocal(&valObj) &&
-//            !valObj->IsUndefined() &&
-//            !valObj->IsNull()) {
-//        v8::String::Utf8Value val(valObj);
-//        return strdup(*val);
-//    } else {
-//        return strdup(defaultValue);
-//    }
-//}
-
 HumixFaceRec::HumixFaceRec(const v8::FunctionCallbackInfo<v8::Value>& args) 
     : mVideoCap(NULL),
-      mCurrentUser(NULL),
-      mSaveImgNum(1),
-      mTrained(false)
-    {
-//    v8::Local<v8::Object> config = args[0]->ToObject();
-//    v8::Local<v8::Context> ctx = args.GetIsolate()->GetCurrentContext();
+      mTrained(false) {
 
-
-    if (!init()) {
-        args.GetIsolate()->ThrowException(
-                v8::Exception::Error(Nan::New("HumixFaceRec initialization failed").ToLocalChecked()));
-        return;
-    }
-
-    mState = kStart;
-    printf("Humix FaceRec Inited");
-
-    /*
-    char const *cfg;
-    v8::Local<v8::Array> props = config->GetPropertyNames();
-    int propsNum = props->Length();
-    mArgc = propsNum * 2;
-    mArgv = (char**)calloc(mArgc, sizeof(char**));
-    int counter = 0;
-    for ( int i = 0; i < propsNum; i++ ) {
-        v8::Local<v8::Value> valObj;
-        if ( props->Get(ctx, i).ToLocal(&valObj) ) {
-            //option: need to add '-' prefix as an option
-            v8::String::Utf8Value name(valObj);
-            char** p = mArgv + counter++;
-            *p = (char*)malloc(name.length() + 2);
-            sprintf(*p, "-%s", *name);
-            if ( config->Get(ctx, valObj).ToLocal(&valObj) &&
-                    !valObj->IsNull() &&
-                    !valObj->IsUndefined()) {
-                //option value
-                v8::String::Utf8Value val(valObj);
-                p = mArgv + counter++;
-                *p = strdup(*val);
-            }
-        }
-    }
-    mConfig = cmd_ln_parse_r(NULL, cont_args_def, mArgc, mArgv, TRUE);
-    */
-
+    init();
     Wrap(args.This());
 }
 
 HumixFaceRec::~HumixFaceRec() {
-
-    mCB.Reset();
-    mTrainCB.Reset();
     CleanCapturedFaces();
-    if (mCurrentUser) {
-        free(mCurrentUser);
-    }
 }
 
-bool HumixFaceRec::init(){
+void HumixFaceRec::init(){
     
     string fn_haar = string("model/lbpcascade_frontalface.xml");
 	string fn_eye = string("model/haarcascade_eye.xml");
@@ -141,10 +76,6 @@ bool HumixFaceRec::init(){
 	m_haar_cascade.load(fn_haar);
 	// Create eye classifier
 	m_eye_cascade.load(fn_eye);
-
-    // Holds the current frame from the Video device:
-	//Mat frame;
-	return true;
 }
 
 
@@ -259,7 +190,6 @@ HumixFaceRec::CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
     Mat frame;
     *mVideoCap >> frame;
     //cap >> frame;
-    printf("new frame got \n");
     v8::String::Utf8Value name(info[0]);
     // Convert the current frame to grayscale:
     Mat gray;
@@ -271,13 +201,10 @@ HumixFaceRec::CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
     CleanCapturedFaces();
     m_haar_cascade.detectMultiScale(gray, faces);
     for (size_t i = 0; i < faces.size(); i++) {
-
-        printf("new face\n");
         // Process face by face:
         Rect face_i = faces[i];
         // Crop the face from the image. So simple with OpenCV C++:
         Mat face = gray(face_i);
-
         Mat face_resized;
 
         // Catch eye
@@ -285,16 +212,12 @@ HumixFaceRec::CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
         m_eye_cascade.detectMultiScale(face, eyes);
         if (eyes.size() == 2) {
             Mat CutImg = CropFace(mCurrentSnapshot, gray, face_i, eyes);
-            cv::resize(CutImg, CutImg, Size(70, 70), 1.0, 1.0, INTER_CUBIC);
             Face* captured = new Face(*name, face_i, CutImg);
             mCapturedFaces.push_back(captured);
 
             if (info.Length() == 2) {
                 v8::String::Utf8Value fileStr(info[1]);
-                char num[5];
-                sprintf(num, "%lu", i);
-                std::string fileName(*fileStr);fileName.append("-").append(num).append(".jpg");
-                imwrite(fileName.c_str(), CutImg);
+                imwrite(*fileStr, CutImg);
             }
         }
     }
@@ -340,7 +263,56 @@ HumixFaceRec::TrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info)
     for (std::vector<Face*>::iterator it = mCapturedFaces.begin() ; it != mCapturedFaces.end(); ++it) {
         Mat CutImg = (*it)->mMat;
         Rect face = (*it)->mRect;
-        // predict person before update
+
+        // retrain data with CutImg
+        vector<Mat> newImages; newImages.push_back(CutImg);
+        vector<int> newLabels; newLabels.push_back(label);
+        TrainImpl(newImages, newLabels);
+        mPersons.insert(std::pair<std::string, int>(nameStr, label));
+
+        string box_text("Id="); box_text.append(*name);
+        // And now put it into the image:
+        int pos_x = std::max(face.tl().x - 10, 0);
+        int pos_y = std::max(face.tl().y - 10, 0);
+        putText(mCurrentSnapshot, box_text, Point(pos_x, pos_y), FONT_HERSHEY_PLAIN, 1.0, Scalar(0, 255, 0), 2);
+        string fileName("./images/orig/"); fileName.append(*name).append(".jpg");
+        imwrite(fileName.c_str(), mCurrentSnapshot);
+    }
+}
+
+/*static*/
+void HumixFaceRec::sDetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    HumixFaceRec* hf = Unwrap<HumixFaceRec>(info.Holder());
+    if ( hf == nullptr ) {
+        info.GetIsolate()->ThrowException(v8::Exception::ReferenceError(
+                Nan::New("Not a HumixFaceRec object").ToLocalChecked()));
+        return;
+    }
+
+    if ( info.Length() != 0 ) {
+        info.GetIsolate()->ThrowException(v8::Exception::SyntaxError(
+                Nan::New("Usage: dectedCapturedFace()").ToLocalChecked()));
+        return;
+    }
+    hf->DetectCapturedFace(info);
+}
+
+void
+HumixFaceRec::DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
+
+    if (mCapturedFaces.size() == 0) {
+        info.GetIsolate()->ThrowException(
+                v8::Exception::Error(Nan::New("call captureFace() first").ToLocalChecked()));
+        return;
+    }
+
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Object> rev = v8::Object::New(isolate);
+
+    for (std::vector<Face*>::iterator it = mCapturedFaces.begin() ; it != mCapturedFaces.end(); ++it) {
+        Mat CutImg = (*it)->mMat;
+        Rect face = (*it)->mRect;
+
         int prediction = -1;
         double predicted_confidence = 0.0;
         mFacialModel->predict(CutImg, prediction, predicted_confidence);
@@ -356,46 +328,16 @@ HumixFaceRec::TrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info)
         }
         string box_text = "Id=" + predictPerson + ", conf=" + confidence.str();
 
+        // And now put it into the image:
         int pos_x = std::max(face.tl().x - 10, 0);
         int pos_y = std::max(face.tl().y - 10, 0);
-
-        // And now put it into the image:
         putText(mCurrentSnapshot, box_text, Point(pos_x, pos_y), FONT_HERSHEY_PLAIN, 1.0, Scalar(0, 255, 0), 2);
-
-        // retrain data with CutImg
-        //newImages.push_back(CutImg);
-        //newLabels.push_back(person.size() - 1);
-        mImages.push_back(CutImg);
-        vector<Mat> newImages; newImages.push_back(CutImg);
-        vector<int> newLabels; newLabels.push_back(label);
-        //cout << "newImages.size() = " << newImages.size() << endl;
-        if (mTrained) {
-            mFacialModel->update(newImages, newLabels);
-        } else {
-            mFacialModel->train(newImages, newLabels);
-            mTrained = true;
-        }
-        mPersons.insert(std::pair<std::string, int>(nameStr, label));
-        cout << "We are push_back label" << label << " , person :" << nameStr << endl;
-        // Update
-        //model->update(newImages, newLabels);
-        // Clear vector
-        //newImages.pop_back();
-        //newLabels.pop_back();
-
-        // FIXME : add these back
-        // Img_Conf << confidence.str() << endl;
-        // ID << mPersons.at(prediction) << endl;
-
-        if (predictPerson.compare(nameStr) == 0 && predicted_confidence > 200) {
-            cout << "Train success " << endl;
-            return info.GetReturnValue().Set(true);
-        } else {
-            cout << "Id=" << predictPerson << ", conf=" << confidence.str() << endl;
-            cout << "Continuing training... " << endl;
-        }
+        string fileName("./images/orig/"); fileName.append(predictPerson).append(".jpg");
+        imwrite(fileName.c_str(), mCurrentSnapshot);
+        rev->Set(Nan::New("name").ToLocalChecked(), Nan::New(predictPerson.c_str()).ToLocalChecked());
+        rev->Set(Nan::New("conf").ToLocalChecked(), Nan::New(predicted_confidence));
     }
-    return info.GetReturnValue().Set(false);
+    return info.GetReturnValue().Set(rev);
 }
 
 /*static*/
@@ -443,12 +385,8 @@ HumixFaceRec::Train(const v8::FunctionCallbackInfo<v8::Value>& info) {
         labels.push_back(label);
     }
 
-    if (mTrained) {
-        mFacialModel->update(images, labels);
-    } else {
-        mFacialModel->train(images, labels);
-        mTrained = true;
-    }
+    TrainImpl(images, labels);
+
     mPersons.insert(std::pair<std::string, int>(nameStr, label));
 }
 
@@ -470,9 +408,9 @@ Mat HumixFaceRec::CropFace(Mat &orig, Mat &img, Rect &face, vector< Rect_<int> >
 	Mat Crop_img;
 	int eye_direction[2];
 	// Offset percentage
-	double offset_pct = 0.2;
+	double offset_pct = 0.35;
 	// Deastine size
-	int dest_sz = 70;
+	int dest_sz = 200;
 	// calculate offsets in original image
 	double offset_h = floor(float(offset_pct)*dest_sz);
 	double offset_v = floor(float(offset_pct)*dest_sz);
@@ -533,8 +471,6 @@ Mat HumixFaceRec::CropFace(Mat &orig, Mat &img, Rect &face, vector< Rect_<int> >
 	double scale = float(dist) / float(reference);
 	// rotate original around the left eye
 	Mat img_rotate = RotateImage(img, rotation, eye_left[0], eye_left[1]);
-	//cout << "rotate angle = " << rotation << endl;
-	//imwrite(".\\Me\\img_rotate.jpg", img_rotate);
 	// Crop the rotate img
 	int crop_xy[2];
 	crop_xy[0] = eye_left[0] - scale*offset_h + 20;
@@ -543,7 +479,6 @@ Mat HumixFaceRec::CropFace(Mat &orig, Mat &img, Rect &face, vector< Rect_<int> >
 	Crop_img = img_rotate(cutROI);
 	// Resize Crop_img
 	resize(Crop_img, Crop_img, Size(dest_sz, dest_sz), 1.0, 1.0, INTER_CUBIC);
-	//imwrite(".\\Me\\Crop_img.jpg", Crop_img);
 
 	return Crop_img;
 }
@@ -566,6 +501,7 @@ v8::Local<v8::FunctionTemplate> HumixFaceRec::sFunctionTemplate(
     NODE_SET_PROTOTYPE_METHOD(tmpl, "stopCam", sStopCam);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "captureFace", sCaptureFace);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "trainCapturedFace", sTrainCapturedFace);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "detectCapturedFace", sDetectCapturedFace);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "train", sTrain);
 
     return scope.Escape(tmpl);

@@ -58,6 +58,14 @@ function startTraining(){
 function FaceRec(config) {
 	this._hfr = new HumixFaceRec(config.options);
 	this._hfr.startCam(config.deviceID);
+	//use the existing images to train the engine first
+	this._existingData = require(config.personImgs);
+	this._personImgs = config.personImgs;
+	this
+	for (var person in this._existingData) {
+	    console.info('training', person);
+		this._hfr.train(person, this._existingData[person]);
+	}
 }
 
 FaceRec.prototype.train = function(name, images) {
@@ -75,12 +83,21 @@ FaceRec.prototype.captureAndTrain = function(name, number) {
  	console.info('start training mode with user:', name);
 	var counter = 0;
 	for(var index = 0; index < number; index++) {
-		var faces = this._hfr.captureFace(name, 'images/' + name + counter);
+		var faces = this._hfr.captureFace(name, './images/' + name + counter + '.jpg');
 		if (faces > 0) {
 			counter++;
-			console.info('capture', faces, 'face(s), trying to detect it');
-			if (this._hfr.trainCapturedFace(name)) {
-				console.info('successfully recognize', name);
+			console.info('capture', faces, 'face(s), trying to associate it with', name);
+			this._hfr.trainCapturedFace(name);
+			console.info('capture again');
+			faces = 0;
+			for (var dIndex = 0; dIndex < 3 && faces == 0; dIndex++) {				
+				faces = this._hfr.captureFace(name, './images/' + name + counter + '.jpg');
+			}
+			console.info('detect it....');
+			var result = this._hfr.detectCapturedFace();
+			console.info('result:', result);
+			if (result.name === name && result.conf < 70 && result.conf > 0) {
+				console.info('trained successfully');
 				return;
 			}
 		}
@@ -104,10 +121,5 @@ FaceRec.prototype.captureAndTrain = function(name, number) {
  */
 
 var hfr = new FaceRec(config);
-//use the existing images to train the engine first
-var existingData = require('./images.json');
-for (var person in existingData) {
-    console.info('training', person);
-	hfr.train(person, existingData[person]);
-}
+
 hfr.captureAndTrain('yihong', 20);
