@@ -44,35 +44,26 @@ public:
     HumixFaceRec(const v8::FunctionCallbackInfo<v8::Value>& args);
     ~HumixFaceRec();
 
-    typedef enum {
-        kStart,
-        kDetectionMode,
-        kTrackingMode,
-        kTrainingMode,
-        kStop
-    } State;
-
     static v8::Local<v8::FunctionTemplate> sFunctionTemplate(
             v8::Isolate* isolate);
 private:
     
-    bool init();
+    void init();
     
     static void sV8New(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sCaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sTrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sDetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
-//    static void sDetect(const v8::FunctionCallbackInfo<v8::Value>& info);
 
     void StartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     void StopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     void CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void TrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
+    void DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Train(const v8::FunctionCallbackInfo<v8::Value>& info);
-//    void Detect(const v8::FunctionCallbackInfo<v8::Value>& info);
-    
     
     
 //    static void sTrainLoop(void* arg);
@@ -93,25 +84,20 @@ private:
           }
     }
 
-    State mState;
-    int mArgc;
-    char** mArgv;
-
-    v8::Persistent<v8::Function> mCB;
-    v8::Persistent<v8::Function> mTrainCB;
+    void TrainImpl(vector<Mat> &newImages, vector<int> &newLabels) {
+        if (mTrained) {
+            mFacialModel->update(newImages, newLabels);
+        } else {
+            mFacialModel->train(newImages, newLabels);
+            mTrained = true;
+        }
+    }
 
     Ptr<FaceRecognizer> mFacialModel;
     VideoCapture *mVideoCap;
 
-    vector<Mat> mImages;
-    vector<int> mLabels;
     // initial training 
-    vector<Mat> newImages;
-    vector<int> newLabels;
     std::map<std::string, int> mPersons;
-    
-    char* mCurrentUser;
-    int mSaveImgNum;
 
     CascadeClassifier m_haar_cascade;
 	CascadeClassifier m_eye_cascade;
