@@ -15,41 +15,79 @@
 *******************************************************************************/
 'use strict';
 
-var config  = require('./lib/config');
+var fs = require('fs');
+var nats = require('nats').connect();
+var HumixSense = require('node-humix-sense');
+var path = require('path');
+var _ = require('lodash');
+
+var config = require('./lib/config');
 var FaceRec = require('./lib/facerec').FaceRec;
 
-/*
-var nats    = require('nats').connect();
-var HumixSense = require('node-humix-sense');
-
 var moduleConfig = {
-    "moduleName":"humix-facerec",
-    "commands" : ["start","stop","train"],
-    "events" : ["detect"],
-    "debug": true
+  moduleName:'humix-facerec',
+  commands : ['train', 'detect'],
+  events : ['detectComplete', 'faceDetected', 'trainComplete'],
+  debug: true
 }
 
 var humix = new HumixSense(moduleConfig);
 var hsm;
+var hfr = new FaceRec(config);
+var trainedImg = path.resolve(__dirname, 'images', 'orig', 'trained.jpg');
+var origImgRoot = path.resolve(__dirname, 'images', 'orig');
+var detecting;
+
+var detectedHistory = {};
 
 humix.on('connection', function(humixSensorModule){
 
-    hsm = humixSensorModule;
+  hsm = humixSensorModule;
+  console.log('Communication with humix-sense is now ready.');
 
-    console.log('Communication with humix-sense is now ready.');
+  hsm.on('train', function(data){
+  	data = JSON.parse(data);
+  	if (hfr.captureAndTrain(data.name, 20)) {
+  	  //read ./images/orig/trained.jpg
+  	  var image = fs.readFileSync(trainedImg).toString('base64');
+  		hsm.event('trainComplete', 
+  		    JSON.stringify({id:data.id, image: image}));
+  	} else {
+  	  //failed to perform the training
+      hsm.event('trainComplete',
+          JSON.stringify({id:data.id, msg: 'failed'}));
+  	}
+  });
 
-    hsm.on('train', function(data){
-        console.log('data:'+data);
-        startTraining(data);
-    });  // end of say command
+  hsm.on('detect', function(data) {
+    data = JSON.stringify(data);
+    //try detect 3 times
+    var result;
+    for(var tries = 0; tries < 3; tries++) {
+      if (_.isUndefined(result)) continue;
+      var img = fs.readFileSync(path.resolve(origImgRoot, result.name + '.jpg')).toString('base64');
+      hsm.event('detectComplete', 
+          JSON.stringify({id: data.id, name: result.name, conf: result.conf, image: img}));
+    }
+  })
+  
+  detecting = setInterval(doDetect, 2000);
 });
 
-function startTraining(){
-
-    console.log('start trainning');
+function doDetect() {
+  var result = hfr.detect();
+  if (!_.isUndefined(result)) {
+    //see if we detect this person within 30 seconds
+    try {
+      var historyEntry = detectedHistory[result.name];
+      if (_.isUndefined(historyEntry) || (Date.now() - historyEntry) > 30000) {
+        detectedHistory[result.name] = Date.now();
+        var img = fs.readFileSync(path.resolve(origImgRoot, result.name + '.jpg')).toString('base64');
+        hsm.event('faceDetected', 
+            JSON.stringify({name: result.name, conf: result.conf, image: img}));
+      }      
+    } catch (e) {
+      console.error(e);
+    }
+  }
 }
-
-*/
-
-var hfr = new FaceRec(config);
-hfr.captureAndTrain('yihong', 20);
