@@ -408,7 +408,7 @@ Mat HumixFaceRec::CropFace(Mat &orig, Mat &img, Rect &face, vector< Rect_<int> >
 	Mat Crop_img;
 	int eye_direction[2];
 	// Offset percentage
-	double offset_pct = 0.35;
+	double offset_pct = 0.3;
 	// Deastine size
 	int dest_sz = 200;
 	// calculate offsets in original image
