@@ -38,7 +38,7 @@ using namespace std;
 
 #define DEVICE_ID 0
 #define CONFIDENCE_THRESHOLD 100.0
-#define COLOR_RED Scalar(255, 0, 0)
+#define COLOR_RED Scalar(0, 0, 255)
 #define COLOR_GREEN Scalar(0, 255, 0)
 
 string int2str(int &i) {
