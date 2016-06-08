@@ -37,7 +37,9 @@ using namespace std;
 #include "HumixFaceRec.hpp"
 
 #define DEVICE_ID 0
-
+#define CONFIDENCE_THRESHOLD 100.0
+#define COLOR_RED Scalar(255, 0, 0)
+#define COLOR_GREEN Scalar(0, 255, 0)
 
 string int2str(int &i) {
 	string s;
@@ -320,18 +322,26 @@ HumixFaceRec::DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info
         stringstream confidence;
         confidence << predicted_confidence;
         std::string predictPerson("");
-        for( std::map<std::string,int>::iterator it = mPersons.begin();
-                it != mPersons.end(); it++) {
-            if (it->second == prediction) {
-                predictPerson.append(it->first);
+        Scalar color;
+        if (predicted_confidence > CONFIDENCE_THRESHOLD) {
+            predictPerson.append("unknown");
+            color = COLOR_RED;
+        } else {
+            for( std::map<std::string,int>::iterator it = mPersons.begin();
+              it != mPersons.end(); it++) {
+                if (it->second == prediction) {
+                    predictPerson.append(it->first);
+                }
             }
+            color = COLOR_GREEN;
         }
+
         string box_text = "Id=" + predictPerson + ", conf=" + confidence.str();
 
         // And now put it into the image:
         int pos_x = std::max(face.tl().x - 10, 0);
         int pos_y = std::max(face.tl().y - 10, 0);
-        putText(mCurrentSnapshot, box_text, Point(pos_x, pos_y), FONT_HERSHEY_PLAIN, 1.0, Scalar(0, 255, 0), 2);
+        putText(mCurrentSnapshot, box_text, Point(pos_x, pos_y), FONT_HERSHEY_PLAIN, 1.0, color, 2);
         string fileName("./images/orig/"); fileName.append(predictPerson).append(".jpg");
         imwrite(fileName.c_str(), mCurrentSnapshot);
         rev->Set(Nan::New("name").ToLocalChecked(), Nan::New(predictPerson.c_str()).ToLocalChecked());

@@ -71,7 +71,7 @@ humix.on('connection', function(humixSensorModule){
     }
   })
   
-  detecting = setInterval(doDetect, 2000);
+  detecting = setInterval(doDetect, 1000);
 });
 
 function doDetect() {
