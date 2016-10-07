@@ -49,7 +49,7 @@ string int2str(int &i) {
 }
 
 
-HumixFaceRec::HumixFaceRec(const v8::FunctionCallbackInfo<v8::Value>& args) 
+HumixFaceRec::HumixFaceRec(const v8::FunctionCallbackInfo<v8::Value>& args)
     : mVideoCap(NULL),
       mTrained(false) {
 
@@ -62,18 +62,18 @@ HumixFaceRec::~HumixFaceRec() {
 }
 
 void HumixFaceRec::init(){
-    
+
     string fn_haar = string("model/lbpcascade_frontalface.xml");
 	string fn_eye = string("model/haarcascade_eye.xml");
-    
+
     // Create a FaceRecognizer and train it on the given images:
 	//Ptr<FaceRecognizer> model = createFisherFaceRecognizer();
 	//Ptr<FaceRecognizer> model = createEigenFaceRecognizer();
 
     //this model supported train() then update()
     mFacialModel = createLBPHFaceRecognizer();
-	
-    
+
+
 	// Create face classifier
 	m_haar_cascade.load(fn_haar);
 	// Create eye classifier
@@ -342,10 +342,21 @@ HumixFaceRec::DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info
         int pos_x = std::max(face.tl().x - 10, 0);
         int pos_y = std::max(face.tl().y - 10, 0);
         putText(mCurrentSnapshot, box_text, Point(pos_x, pos_y), FONT_HERSHEY_PLAIN, 1.0, color, 2);
+
+
+        int center_x = face.tl().x + face.width/2;
+        int center_y = face.tl().y + face.height/2;
+
+        cv::Scalar c = cv::Scalar(0,255,0);
+        putText(mCurrentSnapshot, "POINT", Point(center_x,center_y),  FONT_HERSHEY_PLAIN , 1,c);
+
         string fileName("./images/orig/"); fileName.append(predictPerson).append(".jpg");
         imwrite(fileName.c_str(), mCurrentSnapshot);
         rev->Set(Nan::New("name").ToLocalChecked(), Nan::New(predictPerson.c_str()).ToLocalChecked());
         rev->Set(Nan::New("conf").ToLocalChecked(), Nan::New(predicted_confidence));
+        rev->Set(Nan::New("pos_x").ToLocalChecked(), Nan::New(center_x));
+        rev->Set(Nan::New("pos_y").ToLocalChecked(), Nan::New(center_y);
+
     }
     return info.GetReturnValue().Set(rev);
 }

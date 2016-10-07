@@ -1,5 +1,5 @@
 {
-  "name": "humix-sense-speech",
+  "name": "humix-facerec-module",
   "version": "0.2.0",
   "description": "A node module for facial detection and recognition",
   "main": "index.js",
@@ -21,8 +21,7 @@
   "dependencies": {
     "lodash": "^4.13.1",
     "logule": "^2.0.1",
-    "nats": "^0.2.9",
-    "node-humix-sense": "^1.0.0"
+    "humix-sense": "latest"
   },
   "devDependencies": {
     "nan": "^2.1.0",
