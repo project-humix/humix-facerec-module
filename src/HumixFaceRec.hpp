@@ -47,9 +47,9 @@ public:
     static v8::Local<v8::FunctionTemplate> sFunctionTemplate(
             v8::Isolate* isolate);
 private:
-    
+
     void init();
-    
+
     static void sV8New(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -57,6 +57,7 @@ private:
     static void sTrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sDetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     static void sTrain(const v8::FunctionCallbackInfo<v8::Value>& info);
+    static void sTrack(const v8::FunctionCallbackInfo<v8::Value>& info);
 
     void StartCam(const v8::FunctionCallbackInfo<v8::Value>& info);
     void StopCam(const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -64,17 +65,17 @@ private:
     void TrainCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info);
     void Train(const v8::FunctionCallbackInfo<v8::Value>& info);
-    
-    
+    void Track(const v8::FunctionCallbackInfo<v8::Value>& info);
+
 //    static void sTrainLoop(void* arg);
 //    bool TrainData();
 //    static void sTrainCompleted(uv_async_t* async);
- 
+
     static void sFreeHandle(uv_handle_t* handle);
 
     Mat CropFace(Mat &orig, Mat &gray, Rect &face, vector< Rect_<int> > &eyes);
     Mat RotateImage(const Mat source, double angle, int center_x, int center_y, int border = 20);
-    
+
     void CleanCapturedFaces() {
         while (!mCapturedFaces.empty())
           {
@@ -96,7 +97,7 @@ private:
     Ptr<FaceRecognizer> mFacialModel;
     VideoCapture *mVideoCap;
 
-    // initial training 
+    // initial training
     std::map<std::string, int> mPersons;
 
     CascadeClassifier m_haar_cascade;

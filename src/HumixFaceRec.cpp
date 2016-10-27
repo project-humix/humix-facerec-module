@@ -25,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <unistd.h>
 
 using namespace cv;
 using namespace cv::face;
@@ -133,6 +134,10 @@ HumixFaceRec::StartCam(const v8::FunctionCallbackInfo<v8::Value>& info) {
     mVideoCap->set(CV_CAP_PROP_FRAME_WIDTH, 640);
     mVideoCap->set(CV_CAP_PROP_FRAME_HEIGHT, 480);
 
+    // sleep 1 sec, waiting for camera warmup
+    printf("waiting for camera.. %d\n", devInt->Value());
+    sleep(1);
+
     if (!mVideoCap->isOpened()) {
         return info.GetReturnValue().Set(false);
     }
@@ -158,6 +163,8 @@ void HumixFaceRec::sStopCam(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
 void
 HumixFaceRec::StopCam(const v8::FunctionCallbackInfo<v8::Value>&) {
+
+    printf("stopping camera ..\n");
     if (mVideoCap) {
         delete mVideoCap;
     }
@@ -191,7 +198,6 @@ HumixFaceRec::CaptureFace(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
     Mat frame;
     *mVideoCap >> frame;
-    //cap >> frame;
     v8::String::Utf8Value name(info[0]);
     // Convert the current frame to grayscale:
     Mat gray;
@@ -355,7 +361,7 @@ HumixFaceRec::DetectCapturedFace(const v8::FunctionCallbackInfo<v8::Value>& info
         rev->Set(Nan::New("name").ToLocalChecked(), Nan::New(predictPerson.c_str()).ToLocalChecked());
         rev->Set(Nan::New("conf").ToLocalChecked(), Nan::New(predicted_confidence));
         rev->Set(Nan::New("pos_x").ToLocalChecked(), Nan::New(center_x));
-        rev->Set(Nan::New("pos_y").ToLocalChecked(), Nan::New(center_y);
+        rev->Set(Nan::New("pos_y").ToLocalChecked(), Nan::New(center_y));
 
     }
     return info.GetReturnValue().Set(rev);
@@ -410,6 +416,65 @@ HumixFaceRec::Train(const v8::FunctionCallbackInfo<v8::Value>& info) {
 
     mPersons.insert(std::pair<std::string, int>(nameStr, label));
 }
+
+/*static*/
+void HumixFaceRec::sTrack(const v8::FunctionCallbackInfo<v8::Value>& info) {
+    HumixFaceRec* hf = Unwrap<HumixFaceRec>(info.Holder());
+    if ( hf == nullptr ) {
+        info.GetIsolate()->ThrowException(v8::Exception::ReferenceError(
+                Nan::New("Not a HumixFaceRec object").ToLocalChecked()));
+        return;
+    }
+
+
+    hf->Track(info);
+}
+
+void
+HumixFaceRec::Track(const v8::FunctionCallbackInfo<v8::Value>& info) {
+
+    if (mVideoCap == NULL) {
+        info.GetIsolate()->ThrowException(
+                v8::Exception::Error(Nan::New("call startCam() first").ToLocalChecked()));
+        return;
+    }
+
+    Mat frame;
+    *mVideoCap >> frame;
+
+    v8::Isolate* isolate = info.GetIsolate();
+    v8::Local<v8::Object> rev = v8::Object::New(isolate);
+
+    Mat gray;
+    mCurrentSnapshot = frame.clone();
+
+    cvtColor(mCurrentSnapshot, gray, COLOR_BGR2GRAY);
+    // Find the faces in the frame:
+    vector< Rect_<int> > faces;
+    m_haar_cascade.detectMultiScale(gray, faces);
+    for (size_t i = 0; i < faces.size(); i++) {
+        // Process face by face:
+        Rect face_i = faces[i];
+        // Crop the face from the image. So simple with OpenCV C++:
+        Mat face = gray(face_i);
+        Mat face_resized;
+
+        int center_x = face_i.tl().x + face_i.width/2;
+        int center_y = face_i.tl().y + face_i.height/2;
+
+
+        rev->Set(Nan::New("pos_x").ToLocalChecked(), Nan::New(center_x));
+        rev->Set(Nan::New("pos_y").ToLocalChecked(), Nan::New(center_y));
+        return info.GetReturnValue().Set(rev);
+
+    }
+
+    return info.GetReturnValue().Set(rev);
+
+}
+
+
+// Utility Functions
 
 Mat HumixFaceRec::RotateImage(const Mat source, double angle, int center_x, int center_y, int border)
 {
@@ -524,6 +589,8 @@ v8::Local<v8::FunctionTemplate> HumixFaceRec::sFunctionTemplate(
     NODE_SET_PROTOTYPE_METHOD(tmpl, "trainCapturedFace", sTrainCapturedFace);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "detectCapturedFace", sDetectCapturedFace);
     NODE_SET_PROTOTYPE_METHOD(tmpl, "train", sTrain);
+    NODE_SET_PROTOTYPE_METHOD(tmpl, "track", sTrack);
+
 
     return scope.Escape(tmpl);
 }
